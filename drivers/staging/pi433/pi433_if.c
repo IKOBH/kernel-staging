@@ -59,9 +59,7 @@ static DEFINE_MUTEX(minor_lock); /* Protect idr accesses */
 static struct dentry *root_dir;	/* debugfs root directory for the driver */
 
 /* mainly for udev to create /dev/pi433 */
-static const struct class pi433_class = {
-	.name = "pi433",
-};
+static const struct class *pi433_class;
 
 /*
  * tx config is instance specific
@@ -1263,7 +1261,7 @@ static int pi433_probe(struct spi_device *spi)
 
 	/* create device */
 	pi433->devt = MKDEV(MAJOR(pi433_devt), pi433->minor);
-	pi433->dev = device_create(&pi433_class,
+	pi433->dev = device_create(pi433_class,
 				   &spi->dev,
 				   pi433->devt,
 				   pi433,
@@ -1319,7 +1317,7 @@ del_cdev:
 cdev_failed:
 	kthread_stop(pi433->tx_task_struct);
 send_thread_failed:
-	device_destroy(&pi433_class, pi433->devt);
+	device_destroy(pi433_class, pi433->devt);
 device_create_failed:
 	pi433_free_minor(pi433);
 minor_failed:
@@ -1346,7 +1344,7 @@ static void pi433_remove(struct spi_device *spi)
 
 	kthread_stop(pi433->tx_task_struct);
 
-	device_destroy(&pi433_class, pi433->devt);
+	device_destroy(pi433_class, pi433->devt);
 
 	cdev_del(pi433->cdev);
 
@@ -1401,9 +1399,11 @@ static int __init pi433_init(void)
 	if (status < 0)
 		return status;
 
-	status = class_register(&pi433_class);
-	if (status)
+	pi433_class = class_create("pi433");
+	if (IS_ERR(pi433_class)) {
+		status = PTR_ERR(pi433_class);
 		goto unreg_chrdev;
+	}
 
 	root_dir = debugfs_create_dir(KBUILD_MODNAME, NULL);
 
@@ -1415,7 +1415,7 @@ static int __init pi433_init(void)
 
 unreg_class_and_remove_dbfs:
 	debugfs_remove(root_dir);
-	class_unregister(&pi433_class);
+	class_destroy(pi433_class);
 unreg_chrdev:
 	unregister_chrdev(MAJOR(pi433_devt), pi433_spi_driver.driver.name);
 	return status;
@@ -1427,7 +1427,7 @@ static void __exit pi433_exit(void)
 {
 	spi_unregister_driver(&pi433_spi_driver);
 	debugfs_remove(root_dir);
-	class_unregister(&pi433_class);
+	class_destroy(pi433_class);
 	unregister_chrdev(MAJOR(pi433_devt), pi433_spi_driver.driver.name);
 }
 module_exit(pi433_exit);
