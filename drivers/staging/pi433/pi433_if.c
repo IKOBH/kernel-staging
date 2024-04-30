@@ -1409,11 +1409,11 @@ static int __init pi433_init(void)
 
 	status = spi_register_driver(&pi433_spi_driver);
 	if (status < 0)
-		goto unreg_class_and_remove_dbfs;
+		goto destroy_class_and_remove_dbfs;
 
 	return 0;
 
-unreg_class_and_remove_dbfs:
+destroy_class_and_remove_dbfs:
 	debugfs_remove(root_dir);
 	class_destroy(pi433_class);
 unreg_chrdev:
